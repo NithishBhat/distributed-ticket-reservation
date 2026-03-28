@@ -1,11 +1,23 @@
-# Terraform
-.terraform/
-
-# Go binaries
-*.exe
-
-# OS
 .DS_Store
-Thumbs.db
+server-linux
+server
+*.exe
+*.test
 
+venv/
+__pycache__/
+*.pyc
 
+.vscode/
+.idea/
+
+*.pem
+.env
+.zip
+
+# Terraform 
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfplan

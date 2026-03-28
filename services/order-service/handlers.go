@@ -117,37 +117,48 @@ func reservePessimistic(req OrderRequest) (int, string, error) {
 // ── Optimistic: conditional UPDATE with retry ───────────────────────────
 
 func reserveOptimistic(req OrderRequest) (int, string, error) {
-	maxRetries := 3
+    maxRetries := 3
 
-	for attempt := 0; attempt < maxRetries; attempt++ {
-		result, err := db.Exec(
-			"UPDATE tickets SET tickets_reserved = tickets_reserved + $1 WHERE id = $2 AND tickets_reserved + $1 <= quantity",
-			req.Quantity, req.TicketID)
-		if err != nil {
-			return 0, "", err
-		}
+    for attempt := 0; attempt < maxRetries; attempt++ {
+        tx, err := db.Begin()
+        if err != nil {
+            return 0, "", err
+        }
 
-		rowsAffected, _ := result.RowsAffected()
-		if rowsAffected == 0 {
-			if attempt < maxRetries-1 {
-				backoff := time.Duration(50*(1<<attempt)) * time.Millisecond
-				jitter := time.Duration(rand.Intn(50)) * time.Millisecond
-				time.Sleep(backoff + jitter)
-				continue
-			}
-			return 0, "conflict", fmt.Errorf("capacity exceeded after retries")
-		}
+        result, err := tx.Exec(
+            "UPDATE tickets SET tickets_reserved = tickets_reserved + $1 WHERE id = $2 AND tickets_reserved + $1 <= quantity",
+            req.Quantity, req.TicketID)
+        if err != nil {
+            tx.Rollback()
+            return 0, "", err
+        }
 
-		var orderID int
-		err = db.QueryRow(
-			"INSERT INTO orders (ticket_id, idempotency_key, quantity, status) VALUES ($1, $2, $3, 'confirmed') RETURNING order_id",
-			req.TicketID, req.IdempotencyKey, req.Quantity).Scan(&orderID)
-		if err != nil {
-			return 0, "", err
-		}
+        rowsAffected, _ := result.RowsAffected()
+        if rowsAffected == 0 {
+            tx.Rollback()
+            if attempt < maxRetries-1 {
+                backoff := time.Duration(50*(1<<attempt)) * time.Millisecond
+                jitter := time.Duration(rand.Intn(50)) * time.Millisecond
+                time.Sleep(backoff + jitter)
+                continue
+            }
+            return 0, "conflict", fmt.Errorf("capacity exceeded after retries")
+        }
 
-		return orderID, "confirmed", nil
-	}
+        var orderID int
+        err = tx.QueryRow(
+            "INSERT INTO orders (ticket_id, idempotency_key, quantity, status) VALUES ($1, $2, $3, 'confirmed') RETURNING order_id",
+            req.TicketID, req.IdempotencyKey, req.Quantity).Scan(&orderID)
+        if err != nil {
+            tx.Rollback()
+            return 0, "", err
+        }
 
-	return 0, "conflict", fmt.Errorf("capacity exceeded after retries")
+        if err = tx.Commit(); err != nil {
+            return 0, "", err
+        }
+        return orderID, "confirmed", nil
+    }
+
+    return 0, "conflict", fmt.Errorf("capacity exceeded after retries")
 }

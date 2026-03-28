@@ -13,10 +13,10 @@ experiment 1 — auto-scaling
    change the instance count and re-run locust each time:
 
    cd terraform
-   terraform apply -var="db_password=ChangeMe123!" -var="order_service_count=1"
-   terraform apply -var="db_password=ChangeMe123!" -var="order_service_count=2"
-   terraform apply -var="db_password=ChangeMe123!" -var="order_service_count=4"
-   terraform apply -var="db_password=ChangeMe123!" -var="order_service_count=8"
+   terraform apply -var='db_password=ChangeMe123!' -var='order_service_count=1'
+   terraform apply -var='db_password=ChangeMe123!' -var='order_service_count=2'
+   terraform apply -var='db_password=ChangeMe123!' -var='order_service_count=4'
+   terraform apply -var='db_password=ChangeMe123!' -var='order_service_count=8'
 
    looking at: req/s, p50/p95/p99 latency, error rate
 
@@ -25,8 +25,8 @@ experiment 2 — locking strategies
    switch between pessimistic and optimistic, run locust for each:
 
    cd terraform
-   terraform apply -var="db_password=ChangeMe123!" -var="lock_strategy=pessimistic"
-   terraform apply -var="db_password=ChangeMe123!" -var="lock_strategy=optimistic"
+   terraform apply -var='db_password=ChangeMe123!' -var='lock_strategy=pessimistic'
+   terraform apply -var='db_password=ChangeMe123!' -var='lock_strategy=optimistic'
 
    after each run, check no overselling happened:
    SELECT id, quantity, tickets_reserved FROM tickets;

@@ -1,0 +1,131 @@
+
+<style>
+.sec { font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: .07em; color: var(--color-text-tertiary); margin: 0 0 10px; }
+.mg { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 10px; margin-bottom: 20px; }
+.mc { background: var(--color-background-secondary); border-radius: 8px; padding: 10px 12px; }
+.ml { font-size: 11px; color: var(--color-text-secondary); margin: 0 0 3px; }
+.mv { font-size: 18px; font-weight: 500; color: var(--color-text-primary); margin: 0; line-height: 1.2; }
+.ms { font-size: 11px; color: var(--color-text-tertiary); margin: 2px 0 0; }
+.leg { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 10px; font-size: 12px; color: var(--color-text-secondary); }
+.leg span { display: flex; align-items: center; gap: 5px; }
+.dot { width: 10px; height: 10px; border-radius: 2px; }
+</style>
+
+<div style="padding: 1rem 0;">
+<p class="sec">Overview — POST /orders across all runs</p>
+<div class="mg">
+  <div class="mc"><p class="ml">task_1 (1 instance)</p><p class="mv">348 <span style="font-size:12px;font-weight:400">req/s</span></p><p class="ms">p50 210ms</p></div>
+  <div class="mc"><p class="ml">task_2 (2 instances)</p><p class="mv">346 <span style="font-size:12px;font-weight:400">req/s</span></p><p class="ms">p50 100ms</p></div>
+  <div class="mc"><p class="ml">task_4 (4 instances)</p><p class="mv">488 <span style="font-size:12px;font-weight:400">req/s</span></p><p class="ms">p50 76ms</p></div>
+  <div class="mc"><p class="ml">task_8 (8 instances)</p><p class="mv">492 <span style="font-size:12px;font-weight:400">req/s</span></p><p class="ms">p50 76ms</p></div>
+</div>
+
+<p class="sec">Throughput — POST /orders (req/s)</p>
+<div class="leg">
+  <span><span class="dot" style="background:#378ADD"></span>POST /orders req/s</span>
+</div>
+<div style="position:relative;width:100%;height:200px;margin-bottom:24px"><canvas id="c1"></canvas></div>
+
+<p class="sec">Median latency — POST /orders p50 (ms)</p>
+<div class="leg">
+  <span><span class="dot" style="background:#1D9E75"></span>p50</span>
+  <span><span class="dot" style="background:#EF9F27"></span>p99</span>
+  <span><span class="dot" style="background:#E24B4A"></span>p99.9</span>
+</div>
+<div style="position:relative;width:100%;height:240px;margin-bottom:24px"><canvas id="c2"></canvas></div>
+
+<p class="sec">Latency percentiles heatmap — POST /orders (ms)</p>
+<div style="overflow-x:auto">
+<table style="width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed">
+<thead><tr>
+  <th style="text-align:left;padding:7px 10px;font-size:11px;font-weight:500;color:var(--color-text-secondary);border-bottom:0.5px solid var(--color-border-tertiary);width:18%">Run</th>
+  <th style="text-align:right;padding:7px 8px;font-size:11px;font-weight:500;color:var(--color-text-secondary);border-bottom:0.5px solid var(--color-border-tertiary)">p50</th>
+  <th style="text-align:right;padding:7px 8px;font-size:11px;font-weight:500;color:var(--color-text-secondary);border-bottom:0.5px solid var(--color-border-tertiary)">p75</th>
+  <th style="text-align:right;padding:7px 8px;font-size:11px;font-weight:500;color:var(--color-text-secondary);border-bottom:0.5px solid var(--color-border-tertiary)">p90</th>
+  <th style="text-align:right;padding:7px 8px;font-size:11px;font-weight:500;color:var(--color-text-secondary);border-bottom:0.5px solid var(--color-border-tertiary)">p95</th>
+  <th style="text-align:right;padding:7px 8px;font-size:11px;font-weight:500;color:var(--color-text-secondary);border-bottom:0.5px solid var(--color-border-tertiary)">p99</th>
+  <th style="text-align:right;padding:7px 8px;font-size:11px;font-weight:500;color:var(--color-text-secondary);border-bottom:0.5px solid var(--color-border-tertiary)">p99.9</th>
+  <th style="text-align:right;padding:7px 8px;font-size:11px;font-weight:500;color:var(--color-text-secondary);border-bottom:0.5px solid var(--color-border-tertiary)">p100</th>
+</tr></thead>
+<tbody id="htable"></tbody>
+</table>
+</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+const labels = ['task_1\n(1)', 'task_2\n(2)', 'task_4\n(4)', 'task_8\n(8)'];
+const xlabels = ['task_1 (×1)', 'task_2 (×2)', 'task_4 (×4)', 'task_8 (×8)'];
+
+new Chart(document.getElementById('c1'), {
+  type: 'bar',
+  data: {
+    labels: xlabels,
+    datasets: [{
+      label: 'req/s',
+      data: [348, 346, 488, 492],
+      backgroundColor: '#378ADD',
+      borderRadius: 4,
+      barPercentage: 0.5
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => c.parsed.y + ' req/s' } } },
+    scales: {
+      x: { grid: { display: false }, ticks: { color: '#888780', font: { size: 11 } } },
+      y: { grid: { color: 'rgba(136,135,128,0.15)' }, ticks: { color: '#888780', font: { size: 11 } }, min: 0, max: 600 }
+    }
+  }
+});
+
+new Chart(document.getElementById('c2'), {
+  type: 'line',
+  data: {
+    labels: xlabels,
+    datasets: [
+      { label: 'p50', data: [210, 100, 76, 76], borderColor: '#1D9E75', backgroundColor: 'rgba(29,158,117,.1)', tension: 0.3, pointRadius: 4, fill: false },
+      { label: 'p99', data: [940, 870, 330, 160], borderColor: '#EF9F27', backgroundColor: 'rgba(239,159,39,.1)', tension: 0.3, pointRadius: 4, fill: false },
+      { label: 'p99.9', data: [1700, 1500, 1500, 1100], borderColor: '#E24B4A', backgroundColor: 'rgba(226,75,74,.08)', tension: 0.3, pointRadius: 4, fill: false }
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => c.dataset.label + ': ' + c.parsed.y + 'ms' } } },
+    scales: {
+      x: { grid: { display: false }, ticks: { color: '#888780', font: { size: 11 } } },
+      y: { grid: { color: 'rgba(136,135,128,0.15)' }, ticks: { color: '#888780', font: { size: 11 }, callback: v => v + 'ms' }, min: 0 }
+    }
+  }
+});
+
+const rows = [
+  { run: 'task_1 ×1', vals: [210, 280, 410, 530, 940, 1700, 2900] },
+  { run: 'task_2 ×2', vals: [100, 410, 580, 670, 870, 1500, 2600] },
+  { run: 'task_4 ×4', vals: [76,  77,  80,  89,  330, 1500, 2500] },
+  { run: 'task_8 ×8', vals: [76,  77,  80,  84,  160, 1100, 1900] },
+];
+const maxVals = [210, 410, 580, 670, 940, 1700, 2900];
+function heat(v, max) {
+  const t = v / max;
+  if (t < 0.33) return { bg: 'rgba(29,158,117,0.12)', color: '#085041' };
+  if (t < 0.66) return { bg: 'rgba(239,159,39,0.18)', color: '#633806' };
+  return { bg: 'rgba(226,75,74,0.15)', color: '#791F1F' };
+}
+const tbody = document.getElementById('htable');
+rows.forEach((r, i) => {
+  const tr = document.createElement('tr');
+  const td0 = document.createElement('td');
+  td0.style = 'padding:7px 10px;color:var(--color-text-secondary);border-bottom:0.5px solid var(--color-border-tertiary);font-size:12px';
+  td0.textContent = r.run;
+  tr.appendChild(td0);
+  r.vals.forEach((v, j) => {
+    const td = document.createElement('td');
+    const h = heat(v, maxVals[j]);
+    td.style = `padding:7px 8px;text-align:right;border-bottom:0.5px solid var(--color-border-tertiary);font-size:12px;background:${h.bg};color:${h.color};font-weight:500`;
+    td.textContent = v.toLocaleString() + 'ms';
+    tr.appendChild(td);
+  });
+  tbody.appendChild(tr);
+});
+</script>
