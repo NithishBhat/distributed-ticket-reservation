@@ -1,0 +1,23 @@
+db structure and locking
+
+tables
+  tickets — id, name, quantity, tickets_reserved, created_at
+  orders  — order_id, ticket_id, idempotency_key, quantity, status, created_at
+
+constraints
+  CHECK (tickets_reserved <= quantity) — postgres blocks overselling
+  UNIQUE on idempotency_key — duplicate requests return old result
+  FOREIGN KEY ticket_id → tickets(id)
+  indexes on idempotency_key and ticket_id
+
+pessimistic lock
+  SELECT FOR UPDATE locks the row inside a transaction
+  checks capacity, updates tickets_reserved, inserts order, commits
+  other requests on the same ticket wait until commit
+  safe but slow under contention
+
+optimistic lock
+  no lock — does UPDATE ... WHERE tickets_reserved + qty <= quantity
+  if 0 rows updated someone else got there first
+  retries 3x with 50/100/200ms backoff + jitter
+  faster under low contention, retry rate spikes under high
