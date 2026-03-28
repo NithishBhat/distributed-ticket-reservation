@@ -1,0 +1,25 @@
+whats done / whats left
+(checked against both piazza posts)
+
+done
+- ticket service — browse tickets, get single ticket, health check
+- order service — place orders, health check
+- idempotency on orders so retries dont double-book
+- pessimistic locking (FOR UPDATE)
+- optimistic locking (conditional update, 3 retries w/ backoff)
+- postgres — we went with this over dynamo bc we need real
+  transactions and row locks for the locking experiments
+- CHECK constraint on the table so overselling cant happen
+- tables get created automatically when ticket-service boots up
+- all the terraform stuff (VPC, RDS, ECS, ALB, security groups etc)
+- dockerfiles
+- deploy.sh / destroy.sh
+
+still need
+- locust script
+- redis lock (3rd strategy from piazza post 2) — need to add
+  elasticache and the lock code in order-service
+- caching layer for exp 3 — also needs elasticache, goes in
+  ticket-service
+- api gateway — not critical, locust talks to ALB directly
+- user + cart tables for final submission

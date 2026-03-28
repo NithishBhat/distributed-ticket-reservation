@@ -1,0 +1,10 @@
+# Terraform
+.terraform/
+
+# Go binaries
+*.exe
+
+# OS
+.DS_Store
+Thumbs.db
+

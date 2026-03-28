@@ -1,0 +1,83 @@
+hold on to this infop Project Proposal update
+Updated 5 days ago by Hong Guo
+Group Members
+Yanan Zhang
+Jingjing Pan
+Hong Guo
+Nithish Bhat
+Codebase Architecture Update
+Reservation Service API:
+POST /reserve
+All reservation requests are idempotent: each request includes a client-generated idempotency_key. The service deduplicates retries by checking this key before processing, ensuring that network retries or at-least-once delivery do not result in double-reservations. This is critical for correctness in Experiment 4.
+This service is write-heavy during flash-sale events and operates under a CP model, prioritizing consistency over availability to prevent overselling.
+Database: PostgreSQL (RDS) We use PostgreSQL over DynamoDB because our locking experiments (Experiment 2) require well-defined transaction semantics, row-level locks, and conditional updates — all of which are native to relational databases. DynamoDB's optimistic concurrency model would conflate the variable we are trying to isolate.
+
+Experiments
+Experiment 1: Horizontal Auto-Scaling
+We use Locust to simulate flash-sale bursts across varying ECS instance counts (1, 2, 4, 8) provisioned by Terraform.
+Metrics collected:
+
+Throughput (requests per second)
+Latency percentiles (p50, p95, p99)
+Error rate
+Auto-scaling reaction time
+Bottleneck identification: To distinguish compute bottlenecks from database contention bottlenecks, we instrument both ECS CPU utilization and RDS connection wait time / lock wait time separately. 
+Why: Flash-sale traffic follows a highly skewed, bursty arrival pattern. This experiment tests whether horizontal scaling obeys Amdahl's Law in practice — does doubling ECS instances halve latency? We measure the point of diminishing returns and determine whether our bottleneck is compute (scalable) or database contention (not scalable).
+
+Experiment 2: Distributed Locking Strategies
+We compare three concurrency control mechanisms under high contention using Locust.
+Strategies under test:
+
+(a) Pessimistic row-lock — SELECT FOR UPDATE within a transaction
+(b) Optimistic CAS — conditional UPDATE ... WHERE tickets_reserved + qty ≤ capacity, with application-level retry
+(c) Redis-based distributed lock — an external coordination layer using SET NX PX to serialize reservation attempts before hitting the DB
+Goals:
+
+Validate correctness (zero overselling across all strategies)
+Measure throughput under contention
+Evaluate retry rates and latency tradeoffs across strategies
+Why: The reservation invariant is the core consistency requirement. Under high contention, pessimistic locks create serialization bottlenecks; optimistic approaches risk high retry rates; Redis coordination adds network round-trips but reduces DB contention.
+
+Experiment 3: Caching Layer Impact
+We generate read-heavy mixed workloads (90% reads, 10% writes) with and without a Redis caching layer in front of the Event Service. Terraform toggles the cache infrastructure between experimental runs.
+Metrics collected:
+
+Database load reduction (RDS query rate)
+Read latency improvements (p50, p99)
+Cache hit rate
+Overall system throughput
+Why: Event browsing is a read-heavy, latency-sensitive workload. Adding a cache tests whether we can offload the database and reduce p99 read latency without compromising write-path consistency. Cached event data (capacity, metadata) is read-only from the client perspective; reservation writes always bypass the cache and go directly to RDS, preserving consistency.
+
+Experiment 4: Data Consistency Under Failure
+We simulate node failures and network partitions mid-transaction by killing and restarting ECS tasks during peak Locust load.
+Validation criteria:
+
+Zero overselling — verified post-run by reconciling tickets_reserved against reservation log row counts
+Recovery time — time from task kill to full request throughput resumption (target: < 30 seconds)
+Transaction loss rate — percentage of in-flight requests at time of failure that are neither committed nor surfaced as an error to the client (target: < 1%)
+No data corruption — RDS constraint checks and reservation log integrity verified after each run
+Why: Real distributed systems fail. This experiment validates system behavior under the fail-stop model — do ECS task crashes mid-transaction cause overselling or data corruption? Idempotent reservation requests (via idempotency_key) ensure retries after recovery do not double-count. This connects to transaction atomicity, at-least-once delivery, and crash recovery.
+
+How Our Team Adds Value Beyond AI
+AI can generate boilerplate, but the core work of this project requires human judgment it cannot replicate:
+
+Experiment design: Choosing which locking strategies to compare, modeling realistic flash-sale load patterns, and interpreting results against Little's Law requires applying course concepts to context-dependent tradeoffs.
+Live infrastructure debugging: Terraform + ECS failures — IAM mismatches, VPC routing issues — require iterative debugging in a live AWS environment that AI cannot observe or interact with.
+Cross-experiment synthesis: Connecting results across four experiments into a coherent argument about throughput vs. consistency vs. cost is an interpretive task requiring course knowledge.
+Failure injection: Killing ECS tasks at the right moment during peak load and distinguishing genuine findings from experimental artifacts requires real-time human coordination.
+ 
+
+Timeline
+ 
+Week
+Milestone
+Week 9
+1. Finalize service APIs, set up Terraform base infra (ECS, VPC, RDS/DynamoDB), basic Docker builds
+2. Implement Event Service + Reservation Service with pessimistic locking; basic Locust scripts working
+Week 10
+Exp 1: Auto-scaling experiment; collect throughput/latency data across instance counts
+Exp 2: Implement alternative locking strategies; run contention experiments;
+Exp 3: Add caching layer, compare read-heavy workloads
+Exp 4: Failure injection tests; verify no overselling; collect recovery metrics
+Week 11
+Analysis, writeup, final presentation prep

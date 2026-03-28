@@ -1,0 +1,43 @@
+how to test / run experiments
+
+
+ALB url gets printed after deploy.sh finishes.
+
+locust setup (needed for all experiments):
+   pip install locust
+   locust -f locust/locustfile.py --host=http://<ALB_URL>
+   then go to http://localhost:8089 in your browser
+
+
+experiment 1 — auto-scaling
+   change the instance count and re-run locust each time:
+
+   cd terraform
+   terraform apply -var="db_password=ChangeMe123!" -var="order_service_count=1"
+   terraform apply -var="db_password=ChangeMe123!" -var="order_service_count=2"
+   terraform apply -var="db_password=ChangeMe123!" -var="order_service_count=4"
+   terraform apply -var="db_password=ChangeMe123!" -var="order_service_count=8"
+
+   looking at: req/s, p50/p95/p99 latency, error rate
+
+
+experiment 2 — locking strategies
+   switch between pessimistic and optimistic, run locust for each:
+
+   cd terraform
+   terraform apply -var="db_password=ChangeMe123!" -var="lock_strategy=pessimistic"
+   terraform apply -var="db_password=ChangeMe123!" -var="lock_strategy=optimistic"
+
+   after each run, check no overselling happened:
+   SELECT id, quantity, tickets_reserved FROM tickets;
+
+
+experiment 3 — failure recovery
+   start locust with heavy load, then kill a task:
+
+   aws ecs list-tasks --cluster ticket-cluster --service-name order-service
+   aws ecs stop-task --cluster ticket-cluster --task <task-arn>
+
+   check how long it takes to recover, and verify data is clean:
+   SELECT id, quantity, tickets_reserved FROM tickets;
+   SELECT COUNT(*) FROM orders WHERE status = 'confirmed';

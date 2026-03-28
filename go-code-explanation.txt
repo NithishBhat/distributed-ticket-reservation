@@ -1,0 +1,70 @@
+go code walkthrough
+
+
+ticket-service (services/ticket-service/)
+
+main.go
+  starts everything up. connects to postgres via initDB(), sets up
+  the routes, listens on port 8080.
+    GET /tickets       — all tickets
+    GET /tickets/{id}  — one ticket
+    GET /health        — for the load balancer
+
+db.go
+  initDB() — grabs DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME
+  from env vars, connects to postgres, pings it. pool is capped at
+  25 connections, 5 idle.
+
+handlers.go
+  Ticket struct — matches the DB columns, turns into JSON.
+
+  HealthCheck() — 200 "ok", nothing fancy.
+
+  GetAllTickets() — runs SELECT on the tickets table, loops through
+  rows, stuffs them into Ticket structs, sends back JSON array.
+
+  GetTicketByID() — pulls {id} from the url, hits the DB for that
+  row, sends it back. 404 if it doesnt exist.
+
+
+order-service (services/order-service/)
+
+main.go
+  main() — connects to postgres, grabs LOCK_STRATEGY from env
+  (defaults to "pessimistic" if not set), sets up routes, listens
+  on port 8081.
+    POST /orders  — reserve tickets
+    GET  /health  — for the load balancer
+
+db.go
+  initDB() — same idea as ticket-service. reads the DB env vars,
+  connects, pings, sets pool limits. doesnt create any tables
+  though, ticket-service handles that.
+
+handlers.go
+  OrderRequest / OrderResponse — structs for the JSON going in
+  and coming out.
+
+  HealthCheck() — 200 "ok".
+
+  PlaceOrder() — the big one. decodes the request, makes sure
+  the fields arent empty. looks up the idempotency_key first,
+  if its already in the DB it just returns the previous result
+  (so retries dont double-book). then depending on
+  LOCK_STRATEGY it calls one of these two:
+
+  reservePessimistic() — wraps everything in a transaction. does
+  SELECT FOR UPDATE which locks the row so nobody else can touch
+  it. checks theres enough tickets left, bumps tickets_reserved,
+  inserts the order, commits. works great but under heavy load
+  everyone ends up waiting in line for that row lock.
+
+  reserveOptimistic() — skips the explicit lock. just fires off
+  an UPDATE with a WHERE clause that checks capacity. if it
+  updates 0 rows, someone else beat us to it. tries again up to
+  3 times with some backoff and randomness. faster when theres
+  not much competition but gets messy when everyone wants the
+  same ticket.
+
+  either way you cant oversell — theres a CHECK constraint on the
+  table that postgres enforces no matter what.
