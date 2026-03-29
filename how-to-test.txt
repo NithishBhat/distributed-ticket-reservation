@@ -22,20 +22,14 @@ experiment 1 — auto-scaling
 
 
 experiment 2 — locking strategies
-   locust: no second file — use locust/locustfile.py but set a hot ticket so
-   locking contends on one row (see pick_ticket_id() in the locustfile):
-
    export LOCUST_HOT_TICKET=1
-
    then run the SAME command for both terraform runs (same users / duration / host), e.g.:
    locust -f locust/locustfile.py --host=http://<ALB_URL> \
      --users 200 --spawn-rate 20 --run-time 5m --headless
 
    cd terraform
-   terraform apply -var='db_password=ChangeMe123!' -var='lock_strategy=pessimistic'
-   # wait for healthy tasks, run locust (with LOCUST_HOT_TICKET still set)
-   terraform apply -var='db_password=ChangeMe123!' -var='lock_strategy=optimistic'
-   # run locust again with identical args
+   terraform apply -var='db_password=ChangeMe123!' -var='order_service_count=4' -var='lock_strategy=optimistic'
+   terraform apply -var='db_password=ChangeMe123!' -var='order_service_count=4' -var='lock_strategy=pessimistic'
 
    unset LOCUST_HOT_TICKET when doing experiment 1 (spread across tickets 1–4).
 

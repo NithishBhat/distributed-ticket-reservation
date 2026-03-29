@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	_ "github.com/lib/pq"
 )
@@ -31,8 +32,9 @@ func initDB() {
 		log.Fatalf("Failed to ping database: %v", err)
 	}
 
-	db.SetMaxOpenConns(25)
+	db.SetMaxOpenConns(10) // 4 task × 10 = 40
 	db.SetMaxIdleConns(5)
+	db.SetConnMaxLifetime(5 * time.Minute)
 
 	log.Println("Connected to PostgreSQL")
 }

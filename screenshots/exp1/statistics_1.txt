@@ -1,3 +1,5 @@
+--users 200 --spawn-rate 20 --duration 5mins
+
 ## exp1_task_1 ##
 
 Type     Name          # reqs      # fails |    Avg     Min     Max    Med |   req/s  failures/s
