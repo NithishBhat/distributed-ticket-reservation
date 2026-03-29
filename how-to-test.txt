@@ -5,6 +5,9 @@ ALB url gets printed after deploy.sh finishes.
 
 locust setup (needed for all experiments):
    pip install locust
+
+   unset LOCUST_HOT_TICKET
+
    locust -f locust/locustfile.py --host=http://<ALB_URL>
    then go to http://localhost:8089 in your browser
 

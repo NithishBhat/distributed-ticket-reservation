@@ -1,0 +1,122 @@
+
+<style>
+.sec { font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: .07em; color: var(--color-text-tertiary); margin: 0 0 10px; }
+.mg { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 10px; margin-bottom: 20px; }
+.mc { background: var(--color-background-secondary); border-radius: 8px; padding: 10px 12px; }
+.mc.ok { background: var(--color-background-success); }
+.ml { font-size: 11px; color: var(--color-text-secondary); margin: 0 0 3px; }
+.mc.ok .ml { color: var(--color-text-success); opacity: 0.85; }
+.mv { font-size: 18px; font-weight: 500; color: var(--color-text-primary); margin: 0; line-height: 1.2; }
+.mc.ok .mv { color: var(--color-text-success); }
+.ms { font-size: 11px; color: var(--color-text-tertiary); margin: 2px 0 0; }
+.leg { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 10px; font-size: 12px; color: var(--color-text-secondary); }
+.leg span { display: flex; align-items: center; gap: 5px; }
+.dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+.timeline { border: 0.5px solid var(--color-border-tertiary); border-radius: 12px; padding: 16px; margin-bottom: 20px; }
+.tl-row { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 14px; }
+.tl-row:last-child { margin-bottom: 0; }
+.tl-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; margin-top: 3px; }
+.tl-time { font-size: 11px; color: var(--color-text-tertiary); min-width: 52px; margin-top: 1px; }
+.tl-label { font-size: 12px; color: var(--color-text-primary); }
+.tl-sub { font-size: 11px; color: var(--color-text-secondary); margin-top: 2px; }
+</style>
+
+<div style="padding:1rem 0">
+
+<p class="sec">Summary — 10 min fault tolerance test (4 instances)</p>
+<div class="mg">
+  <div class="mc ok">
+    <p class="ml">Failures</p>
+    <p class="mv">0</p>
+    <p class="ms">despite task kills</p>
+  </div>
+  <div class="mc">
+    <p class="ml">Throughput</p>
+    <p class="mv">430 <span style="font-size:12px;font-weight:400">req/s</span></p>
+    <p class="ms">POST /orders</p>
+  </div>
+  <div class="mc">
+    <p class="ml">Total requests</p>
+    <p class="mv">258,167</p>
+    <p class="ms">POST /orders</p>
+  </div>
+  <div class="mc">
+    <p class="ml">Median latency</p>
+    <p class="mv">120 <span style="font-size:12px;font-weight:400">ms</span></p>
+    <p class="ms">p50</p>
+  </div>
+</div>
+
+<p class="sec">Event timeline</p>
+<div class="timeline">
+  <div class="tl-row">
+    <div class="tl-dot" style="background:#1D9E75"></div>
+    <div class="tl-time">t=0</div>
+    <div><div class="tl-label">Test started — 4 tasks running</div><div class="tl-sub">200 users, 10 min duration</div></div>
+  </div>
+  <div class="tl-row">
+    <div class="tl-dot" style="background:#E24B4A"></div>
+    <div class="tl-time">~t=3min</div>
+    <div><div class="tl-label">Tasks manually stopped</div><div class="tl-sub">Some tasks moved to Stopped / Deactivating — running count dropped</div></div>
+  </div>
+  <div class="tl-row">
+    <div class="tl-dot" style="background:#EF9F27"></div>
+    <div class="tl-time">~t=4min</div>
+    <div><div class="tl-label">ECS auto-recovery kicked in</div><div class="tl-sub">New tasks launched within ~1 min, restored to desired count</div></div>
+  </div>
+  <div class="tl-row">
+    <div class="tl-dot" style="background:#1D9E75"></div>
+    <div class="tl-time">t=10min</div>
+    <div><div class="tl-label">Test completed — 0 failures</div><div class="tl-sub">System fully recovered, no errors recorded throughout</div></div>
+  </div>
+</div>
+
+<p class="sec">Response time percentiles — POST /orders (ms)</p>
+<div class="leg"><span><span class="dot" style="background:#378ADD"></span>latency (ms)</span></div>
+<div style="position:relative;width:100%;height:220px;margin-bottom:20px"><canvas id="c1"></canvas></div>
+
+<p class="sec">Comparison — exp1 (5 min, no fault) vs exp3 (10 min, with fault)</p>
+<div style="position:relative;width:100%;height:200px"><canvas id="c2"></canvas></div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+new Chart(document.getElementById('c1'), {
+  type: 'bar',
+  data: {
+    labels: ['p50','p66','p75','p80','p90','p95','p98','p99','p99.9'],
+    datasets: [{
+      data: [120,140,160,180,240,290,370,450,1200],
+      backgroundColor: '#378ADD', borderRadius: 3, barPercentage: 0.6
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => c.parsed.y + 'ms' } } },
+    scales: {
+      x: { grid: { display: false }, ticks: { color: '#888780', font: { size: 11 } } },
+      y: { grid: { color: 'rgba(136,135,128,0.15)' }, ticks: { color: '#888780', font: { size: 11 }, callback: v => v >= 1000 ? (v/1000).toFixed(1)+'s' : v+'ms' }, min: 0 }
+    }
+  }
+});
+
+new Chart(document.getElementById('c2'), {
+  type: 'bar',
+  data: {
+    labels: ['p50','p90','p99','req/s'],
+    datasets: [
+      { label: 'exp1 (no fault)', data: [100, 280, 880, 414], backgroundColor: '#1D9E75', borderRadius: 3, barPercentage: 0.4 },
+      { label: 'exp3 (with fault)', data: [120, 240, 450, 430], backgroundColor: '#378ADD', borderRadius: 3, barPercentage: 0.4 }
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => c.dataset.label + ': ' + c.parsed.y } } },
+    scales: {
+      x: { grid: { display: false }, ticks: { color: '#888780', font: { size: 11 } } },
+      y: { grid: { color: 'rgba(136,135,128,0.15)' }, ticks: { color: '#888780', font: { size: 11 } }, min: 0 }
+    }
+  }
+});
+</script>
