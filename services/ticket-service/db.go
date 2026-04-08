@@ -68,18 +68,68 @@ func migrateAndSeed() {
 
 	var count int
 	db.QueryRow("SELECT COUNT(*) FROM tickets").Scan(&count)
-	if count == 0 {
+	if count < 50 {
+		// Clear old data so IDs start fresh at 1..50
+		db.Exec("DELETE FROM orders")
+		db.Exec("DELETE FROM tickets")
+		db.Exec("ALTER SEQUENCE tickets_id_seq RESTART WITH 1")
 		_, err = db.Exec(`
 			INSERT INTO tickets (name, quantity) VALUES
 				('NBA Finals Game 7', 20000),
 				('Super Bowl LXII', 70000),
 				('World Cup Final', 80000),
-				('Concert - Taylor Swift', 50000)
+				('Concert - Taylor Swift', 50000),
+				('Champions League Final', 60000),
+				('Olympics Opening Ceremony', 80000),
+				('Grand Prix Monaco', 30000),
+				('Wimbledon Final', 15000),
+				('Concert - Drake', 45000),
+				('Concert - Bad Bunny', 55000),
+				('UFC 300', 20000),
+				('World Series Game 7', 40000),
+				('Rugby World Cup Final', 35000),
+				('Cricket World Cup Final', 50000),
+				('Concert - Beyonce', 60000),
+				('Concert - Ed Sheeran', 50000),
+				('NBA All-Star Game', 25000),
+				('FIFA Club World Cup', 45000),
+				('Concert - Coldplay', 55000),
+				('Concert - The Weeknd', 40000),
+				('Stanley Cup Finals', 20000),
+				('MLS Cup Final', 25000),
+				('Concert - Adele', 35000),
+				('Concert - Bruno Mars', 30000),
+				('Australian Open Final', 15000),
+				('US Open Final', 24000),
+				('French Open Final', 15000),
+				('Tour de France Final', 10000),
+				('Concert - Billie Eilish', 40000),
+				('Concert - Post Malone', 35000),
+				('Concert - Dua Lipa', 45000),
+				('Concert - SZA', 40000),
+				('Concert - Travis Scott', 50000),
+				('Concert - Kendrick Lamar', 45000),
+				('Super Bowl Halftime Show', 70000),
+				('Daytona 500', 100000),
+				('Kentucky Derby', 150000),
+				('March Madness Final', 70000),
+				('Concert - Rihanna', 55000),
+				('Concert - Harry Styles', 40000),
+				('Concert - Doja Cat', 35000),
+				('Concert - Olivia Rodrigo', 30000),
+				('Concert - Morgan Wallen', 45000),
+				('Concert - Luke Combs', 35000),
+				('Concert - Metallica', 60000),
+				('Concert - Foo Fighters', 50000),
+				('Boxing Championship', 20000),
+				('PGA Championship', 40000),
+				('Concert - Sabrina Carpenter', 25000),
+				('Concert - Imagine Dragons', 45000)
 		`)
 		if err != nil {
 			log.Fatalf("Failed to seed tickets: %v", err)
 		}
-		log.Println("Seeded 4 tickets")
+		log.Println("Seeded 50 tickets")
 	}
 
 	log.Println("Migration complete")

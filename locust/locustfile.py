@@ -24,8 +24,8 @@ import uuid
 
 from locust import HttpUser, between, task
 
-# Seed data: ticket-service creates ids 1..4 with large capacities.
-TICKET_IDS = (1, 2, 3, 4)
+# Seed data: ticket-service creates ids 1..50 with large capacities.
+TICKET_IDS = tuple(range(1, 51))
 
 
 def pick_ticket_id() -> int:
