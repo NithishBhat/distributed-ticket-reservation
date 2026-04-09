@@ -14,13 +14,12 @@ done
 - all the terraform stuff (VPC, RDS, ECS, ALB, security groups etc)
 - dockerfiles
 - deploy.sh / destroy.sh
+- redis lock (3rd strategy from piazza post 2) — need to add elasticache and the lock code in order-service
+- low contention test for experiment 2
 
 still need
 - locust script
-- redis lock (3rd strategy from piazza post 2) — need to add
-  elasticache and the lock code in order-service
 - caching layer for exp 3 — also needs elasticache, goes in
   ticket-service
 - api gateway — not critical, locust talks to ALB directly
 - user + cart tables for final submission
-- low contention test for experiment 2
