@@ -86,6 +86,22 @@ resource "aws_lb_listener_rule" "tickets" {
   }
 }
 
+resource "aws_lb_listener_rule" "validate" {
+  listener_arn = aws_lb_listener.http.arn
+  priority     = 150
+
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.ticket_service.arn
+  }
+
+  condition {
+    path_pattern {
+      values = ["/validate"]
+    }
+  }
+}
+
 resource "aws_lb_listener_rule" "orders" {
   listener_arn = aws_lb_listener.http.arn
   priority     = 200

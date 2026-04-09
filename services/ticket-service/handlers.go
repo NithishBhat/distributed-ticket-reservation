@@ -42,6 +42,39 @@ func GetAllTickets(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(tickets)
 }
 
+func ValidateNoOverselling(w http.ResponseWriter, r *http.Request) {
+	rows, err := db.Query("SELECT id, name, quantity, tickets_reserved FROM tickets WHERE tickets_reserved > quantity")
+	if err != nil {
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	var violations []Ticket
+	for rows.Next() {
+		var t Ticket
+		if err := rows.Scan(&t.ID, &t.Name, &t.Quantity, &t.TicketsReserved); err != nil {
+			http.Error(w, "Scan error", http.StatusInternalServerError)
+			return
+		}
+		violations = append(violations, t)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if len(violations) == 0 {
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"valid":      true,
+			"violations": []Ticket{},
+		})
+	} else {
+		w.WriteHeader(http.StatusConflict)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"valid":      false,
+			"violations": violations,
+		})
+	}
+}
+
 func GetTicketByID(w http.ResponseWriter, r *http.Request) {
 	idStr := mux.Vars(r)["id"]
 	id, err := strconv.Atoi(idStr)

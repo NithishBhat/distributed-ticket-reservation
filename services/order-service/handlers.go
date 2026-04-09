@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"math/rand"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -65,6 +67,25 @@ func PlaceOrder(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err != nil {
+		var pqErr *pq.Error
+		if errors.As(err, &pqErr) {
+			// Idempotency race: concurrent request with same key inserted first
+			if pqErr.Code == "23505" {
+				var eid int
+				var es string
+				if db.QueryRow("SELECT order_id, status FROM orders WHERE idempotency_key = $1",
+					req.IdempotencyKey).Scan(&eid, &es) == nil {
+					w.Header().Set("Content-Type", "application/json")
+					json.NewEncoder(w).Encode(OrderResponse{OrderID: eid, Status: es})
+					return
+				}
+			}
+			// CHECK constraint violation — overselling safety net
+			if pqErr.Code == "23514" {
+				http.Error(w, "Sold out — no capacity remaining", http.StatusConflict)
+				return
+			}
+		}
 		if status == "conflict" {
 			http.Error(w, "Sold out — no capacity remaining", http.StatusConflict)
 			return

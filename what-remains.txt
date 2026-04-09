@@ -1,25 +1,40 @@
 whats done / whats left
 (checked against both piazza posts)
 
-done
-- ticket service — browse tickets, get single ticket, health check
-- order service — place orders, health check
-- idempotency on orders so retries dont double-book
-- pessimistic locking (FOR UPDATE)
-- optimistic locking (conditional update, 3 retries w/ backoff)
-- postgres — we went with this over dynamo bc we need real
-  transactions and row locks for the locking experiments
-- CHECK constraint on the table so overselling cant happen
-- tables get created automatically when ticket-service boots up
-- all the terraform stuff (VPC, RDS, ECS, ALB, security groups etc)
-- dockerfiles
-- deploy.sh / destroy.sh
-- redis lock (3rd strategy from piazza post 2) — need to add elasticache and the lock code in order-service
-- low contention test for experiment 2
-
 still need
-- locust script
 - caching layer for exp 3 — also needs elasticache, goes in
   ticket-service
 - api gateway — not critical, locust talks to ALB directly
 - user + cart tables for final submission
+
+done
+- verified all 3 strategies under high contention (200 concurrent,
+  single ticket), low contention (spread across tickets), and
+  near-capacity overbooking (100 concurrent for 10 remaining seats)
+  — zero overselling, zero 500 errors
+- locust improvements — 5% duplicate idempotency keys to stress
+  race fix, live overselling detection via /validate task
+- ALB route for /validate
+- /validate endpoint on ticket-service — queries for
+  tickets_reserved > quantity, used by locust during tests
+- DB timeouts — lock_timeout=5s, statement_timeout=10s so
+  pessimistic locks cant block forever under contention
+- CHECK constraint error handling — 23514 now returns 409 instead
+  of 500
+- idempotency race condition fix — concurrent duplicate keys no
+  longer 500, caught via postgres 23505 and re-queried
+- low contention test for experiment 2
+- locust script (exp1 scaling, exp2 contention, idempotency stress)
+- deploy.sh / destroy.sh
+- dockerfiles
+- all the terraform stuff (VPC, RDS, ECS, ALB, ElastiCache, security groups etc)
+- tables get created automatically when ticket-service boots up
+- CHECK constraint on the table so overselling cant happen
+- postgres — we went with this over dynamo bc we need real
+  transactions and row locks for the locking experiments
+- redis distributed lock (SETNX + Lua unlock, 10 retries w/ jitter)
+- optimistic locking (conditional update, 3 retries w/ backoff)
+- pessimistic locking (FOR UPDATE)
+- idempotency on orders so retries dont double-book
+- order service — place orders, health check
+- ticket service — browse tickets, get single ticket, health check

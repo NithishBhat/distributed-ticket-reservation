@@ -19,7 +19,7 @@ func initDB() {
 	password := os.Getenv("DB_PASSWORD")
 	dbname := os.Getenv("DB_NAME")
 
-	connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=require",
+	connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=require lock_timeout=5000 statement_timeout=10000",
 		host, port, user, password, dbname)
 
 	var err error

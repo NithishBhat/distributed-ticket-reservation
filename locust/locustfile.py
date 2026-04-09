@@ -22,10 +22,14 @@ import os
 import random
 import uuid
 
-from locust import HttpUser, between, task
+from locust import HttpUser, between, task, events
 
 # Seed data: ticket-service creates ids 1..50 with large capacities.
 TICKET_IDS = tuple(range(1, 51))
+
+# Small pool of reusable keys to stress the idempotency path (~5% of requests)
+_recent_keys: list[str] = []
+_MAX_RECENT = 50
 
 
 def pick_ticket_id() -> int:
@@ -38,6 +42,20 @@ def pick_ticket_id() -> int:
     if raw:
         return int(raw)
     return random.choice(TICKET_IDS)
+
+
+def pick_idempotency_key() -> str:
+    """
+    ~5% of the time, replay a recently used key to exercise the idempotency
+    path and stress-test the duplicate-key race condition fix.
+    """
+    if _recent_keys and random.random() < 0.05:
+        return random.choice(_recent_keys)
+    key = str(uuid.uuid4())
+    _recent_keys.append(key)
+    if len(_recent_keys) > _MAX_RECENT:
+        _recent_keys.pop(0)
+    return key
 
 
 class OrderHeavyUser(HttpUser):
@@ -53,7 +71,7 @@ class OrderHeavyUser(HttpUser):
         payload = {
             "ticket_id": pick_ticket_id(),
             "quantity": 1,
-            "idempotency_key": str(uuid.uuid4()),
+            "idempotency_key": pick_idempotency_key(),
         }
         with self.client.post(
             "/orders",
@@ -75,3 +93,22 @@ class OrderHeavyUser(HttpUser):
     def browse_tickets(self):
         """Light read traffic to ticket-service (optional realism)."""
         self.client.get("/tickets", name="GET /tickets")
+
+    @task(1)
+    def validate_no_overselling(self):
+        """Calls /validate to check for overselling during the test."""
+        with self.client.get(
+            "/validate",
+            catch_response=True,
+            name="GET /validate",
+        ) as resp:
+            if resp.status_code == 200:
+                data = resp.json()
+                if data.get("valid"):
+                    resp.success()
+                else:
+                    resp.failure(f"OVERSELLING DETECTED: {data.get('violations')}")
+            elif resp.status_code == 409:
+                resp.failure(f"OVERSELLING DETECTED: {resp.text}")
+            else:
+                resp.failure(f"validate error {resp.status_code}")

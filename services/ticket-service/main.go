@@ -13,6 +13,7 @@ func main() {
 	r := mux.NewRouter()
 	r.HandleFunc("/tickets", GetAllTickets).Methods("GET")
 	r.HandleFunc("/tickets/{id}", GetTicketByID).Methods("GET")
+	r.HandleFunc("/validate", ValidateNoOverselling).Methods("GET")
 	r.HandleFunc("/health", HealthCheck).Methods("GET")
 
 	log.Println("ticket-service listening on :8080")
