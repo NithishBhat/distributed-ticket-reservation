@@ -146,6 +146,7 @@ resource "aws_ecs_task_definition" "order_service" {
       { name = "DB_PASSWORD", value = var.db_password },
       { name = "DB_NAME", value = "ticketdb" },
       { name = "LOCK_STRATEGY", value = var.lock_strategy },
+      { name = "REDIS_HOST", value = aws_elasticache_cluster.redis.cache_nodes[0].address },
     ]
 
     logConfiguration = {

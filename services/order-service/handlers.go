@@ -1,12 +1,16 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"math/rand"
 	"net/http"
 	"time"
+
+	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 )
 
 type OrderRequest struct {
@@ -54,6 +58,8 @@ func PlaceOrder(w http.ResponseWriter, r *http.Request) {
 	switch lockStrategy {
 	case "optimistic":
 		orderID, status, err = reserveOptimistic(req)
+	case "redis":
+		orderID, status, err = reserveRedis(req)
 	default:
 		orderID, status, err = reservePessimistic(req)
 	}
@@ -161,4 +167,87 @@ func reserveOptimistic(req OrderRequest) (int, string, error) {
     }
 
     return 0, "conflict", fmt.Errorf("capacity exceeded after retries")
+}
+
+// ── Redis distributed lock ────────────────────────────────────────────
+
+func reserveRedis(req OrderRequest) (int, string, error) {
+	ctx := context.Background()
+	// Use a Redis key as a distributed lock for the ticket ID
+	lockKey := fmt.Sprintf("lock:ticket:%d", req.TicketID)
+	// Unique value to identify our lock ownership, and TTL to prevent deadlocks
+	lockVal := uuid.New().String()
+	// If the holder crashes or hangs, the lock auto-expires so others aren't blocked forever. It    
+	// should be longer than the DB transaction takes (~10-50ms), but short enough to recover quickly from failures.                           
+	lockTTL := 3 * time.Second
+	maxRetries := 10
+
+	// 1. Acquire lock with retry
+	acquired := false
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		ok, err := rdb.SetNX(ctx, lockKey, lockVal, lockTTL).Result()
+		if err != nil {
+			return 0, "", fmt.Errorf("redis error: %w", err)
+		}
+		if ok {
+			acquired = true
+			break
+		}
+		// Lock held by someone else — short spin with jitter
+		time.Sleep(time.Duration(10+rand.Intn(20)) * time.Millisecond)
+	}
+	if !acquired {
+		return 0, "conflict", fmt.Errorf("could not acquire redis lock")
+	}
+
+	// 2. Ensure lock is released when done
+	defer func() {
+		// Only delete if we still own the lock
+		script := redis.NewScript(`
+			if redis.call("get", KEYS[1]) == ARGV[1] then
+				return redis.call("del", KEYS[1])
+			else
+				return 0
+			end
+		`)
+		script.Run(ctx, rdb, []string{lockKey}, lockVal)
+	}()
+
+	// 3. Do the DB work (no row lock needed — we hold the distributed lock)
+	var reserved, capacity int
+	err := db.QueryRow("SELECT tickets_reserved, quantity FROM tickets WHERE id = $1", req.TicketID).
+		Scan(&reserved, &capacity)
+	if err != nil {
+		return 0, "", err
+	}
+
+	if reserved+req.Quantity > capacity {
+		return 0, "conflict", fmt.Errorf("capacity exceeded")
+	}
+
+	tx, err := db.Begin()
+	if err != nil {
+		return 0, "", err
+	}
+	defer tx.Rollback()
+
+	_, err = tx.Exec("UPDATE tickets SET tickets_reserved = tickets_reserved + $1 WHERE id = $2",
+		req.Quantity, req.TicketID)
+	if err != nil {
+		return 0, "", err
+	}
+
+	var orderID int
+	err = tx.QueryRow(
+		"INSERT INTO orders (ticket_id, idempotency_key, quantity, status) VALUES ($1, $2, $3, 'confirmed') RETURNING order_id",
+		req.TicketID, req.IdempotencyKey, req.Quantity).Scan(&orderID)
+	if err != nil {
+		return 0, "", err
+	}
+
+	if err = tx.Commit(); err != nil {
+		return 0, "", err
+	}
+
+	return orderID, "confirmed", nil
 }

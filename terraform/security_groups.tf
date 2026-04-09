@@ -83,3 +83,29 @@ resource "aws_security_group" "rds" {
 
   tags = { Name = "ticket-rds-sg" }
 }
+
+# ──────────────────────────────────────────────
+# Redis Security Group — only ECS can reach Redis
+# ──────────────────────────────────────────────
+resource "aws_security_group" "redis" {
+  name        = "ticket-redis-sg"
+  description = "Allow Redis from ECS tasks"
+  vpc_id      = aws_vpc.main.id
+
+  ingress {
+    description     = "Redis from ECS"
+    from_port       = 6379
+    to_port         = 6379
+    protocol        = "tcp"
+    security_groups = [aws_security_group.ecs.id]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = { Name = "ticket-redis-sg" }
+}

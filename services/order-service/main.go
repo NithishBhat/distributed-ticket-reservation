@@ -12,6 +12,7 @@ var lockStrategy string
 
 func main() {
 	initDB()
+	initRedis()
 
 	lockStrategy = os.Getenv("LOCK_STRATEGY")
 	if lockStrategy == "" {

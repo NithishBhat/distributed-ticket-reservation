@@ -19,11 +19,11 @@ ECR="$ACCOUNT.dkr.ecr.$REGION.amazonaws.com"
 aws ecr get-login-password --region $REGION | docker login --username AWS --password-stdin "$ECR"
 
 cd ../services/ticket-service
-docker build -t "$ECR/ticket-service:latest" .
+docker build --platform linux/amd64 -t "$ECR/ticket-service:latest" .
 docker push "$ECR/ticket-service:latest"
 
 cd ../order-service
-docker build -t "$ECR/order-service:latest" .
+docker build --platform linux/amd64 -t "$ECR/order-service:latest" .
 docker push "$ECR/order-service:latest"
 
 # ── 3. Deploy to ECS ────────────────────────
