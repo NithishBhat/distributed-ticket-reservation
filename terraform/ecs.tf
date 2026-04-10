@@ -30,23 +30,11 @@ resource "aws_cloudwatch_log_group" "order_service" {
 
 # ──────────────────────────────────────────────
 # ECS Task Execution Role
+# AWS Academy does not allow iam:CreateRole, so we look up the
+# pre-existing LabRole that every Learner Lab provides.
 # ──────────────────────────────────────────────
-resource "aws_iam_role" "ecs_task_execution" {
-  name = "ticket-ecs-task-execution"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Action    = "sts:AssumeRole"
-      Effect    = "Allow"
-      Principal = { Service = "ecs-tasks.amazonaws.com" }
-    }]
-  })
-}
-
-resource "aws_iam_role_policy_attachment" "ecs_task_execution" {
-  role       = aws_iam_role.ecs_task_execution.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+data "aws_iam_role" "ecs_task_execution" {
+  name = "LabRole"
 }
 
 # ──────────────────────────────────────────────
@@ -66,7 +54,7 @@ resource "aws_ecs_task_definition" "ticket_service" {
   requires_compatibilities = ["FARGATE"]
   cpu                      = "256"
   memory                   = "512"
-  execution_role_arn       = aws_iam_role.ecs_task_execution.arn
+  execution_role_arn       = data.aws_iam_role.ecs_task_execution.arn
 
   container_definitions = jsonencode([{
     name      = "ticket-service"
@@ -79,11 +67,14 @@ resource "aws_ecs_task_definition" "ticket_service" {
     }]
 
     environment = [
-      { name = "DB_HOST", value = aws_db_instance.postgres.address },
-      { name = "DB_PORT", value = "5432" },
-      { name = "DB_USER", value = var.db_username },
-      { name = "DB_PASSWORD", value = var.db_password },
-      { name = "DB_NAME", value = "ticketdb" },
+      { name = "DB_HOST",           value = aws_db_instance.postgres.address },
+      { name = "DB_PORT",           value = "5432" },
+      { name = "DB_USER",           value = var.db_username },
+      { name = "DB_PASSWORD",       value = var.db_password },
+      { name = "DB_NAME",           value = "ticketdb" },
+      { name = "ENABLE_CACHE",      value = tostring(var.enable_cache) },
+      { name = "REDIS_HOST",        value = aws_elasticache_cluster.redis.cache_nodes[0].address },
+      { name = "CACHE_TTL_SECONDS", value = tostring(var.cache_ttl_seconds) },
     ]
 
     logConfiguration = {
@@ -127,7 +118,7 @@ resource "aws_ecs_task_definition" "order_service" {
   requires_compatibilities = ["FARGATE"]
   cpu                      = "256"
   memory                   = "512"
-  execution_role_arn       = aws_iam_role.ecs_task_execution.arn
+  execution_role_arn       = data.aws_iam_role.ecs_task_execution.arn
 
   container_definitions = jsonencode([{
     name      = "order-service"

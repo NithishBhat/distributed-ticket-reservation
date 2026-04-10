@@ -1,7 +1,10 @@
 package main
 
 import (
+	"context"
+	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -21,6 +24,21 @@ func HealthCheck(w http.ResponseWriter, r *http.Request) {
 }
 
 func GetAllTickets(w http.ResponseWriter, r *http.Request) {
+	ctx := context.Background()
+	cacheKey := "ticket:all"
+
+	// Try Redis first if caching is enabled.
+	if cacheEnabled && rdb != nil {
+		cached, err := rdb.Get(ctx, cacheKey).Result()
+		if err == nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("X-Cache", "HIT")
+			w.Write([]byte(cached))
+			return
+		}
+	}
+
+	// Cache miss (or cache disabled): read from PostgreSQL.
 	rows, err := db.Query("SELECT id, name, quantity, tickets_reserved FROM tickets")
 	if err != nil {
 		http.Error(w, "Database error", http.StatusInternalServerError)
@@ -38,8 +56,22 @@ func GetAllTickets(w http.ResponseWriter, r *http.Request) {
 		tickets = append(tickets, t)
 	}
 
+	// Encode once so the same JSON can be returned to the client
+	// and stored in Redis.
+	respBytes, err := json.Marshal(tickets)
+	if err != nil {
+		http.Error(w, "Encoding error", http.StatusInternalServerError)
+		return
+	}
+
+	// Store fresh result in Redis with TTL.
+	if cacheEnabled && rdb != nil {
+		_ = rdb.Set(ctx, cacheKey, respBytes, cacheTTL).Err()
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(tickets)
+	w.Header().Set("X-Cache", "MISS")
+	w.Write(respBytes)
 }
 
 func ValidateNoOverselling(w http.ResponseWriter, r *http.Request) {
@@ -76,6 +108,8 @@ func ValidateNoOverselling(w http.ResponseWriter, r *http.Request) {
 }
 
 func GetTicketByID(w http.ResponseWriter, r *http.Request) {
+	ctx := context.Background()
+
 	idStr := mux.Vars(r)["id"]
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
@@ -83,14 +117,46 @@ func GetTicketByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	cacheKey := fmt.Sprintf("ticket:id:%d", id)
+
+	// Try Redis first if caching is enabled.
+	if cacheEnabled && rdb != nil {
+		cached, err := rdb.Get(ctx, cacheKey).Result()
+		if err == nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("X-Cache", "HIT")
+			w.Write([]byte(cached))
+			return
+		}
+	}
+
+	// Cache miss (or cache disabled): read from PostgreSQL.
 	var t Ticket
 	err = db.QueryRow("SELECT id, name, quantity, tickets_reserved FROM tickets WHERE id = $1", id).
 		Scan(&t.ID, &t.Name, &t.Quantity, &t.TicketsReserved)
 	if err != nil {
-		http.Error(w, "Ticket not found", http.StatusNotFound)
+		if err == sql.ErrNoRows {
+			http.Error(w, "Ticket not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
 
+	// Encode once so the same JSON can be returned to the client
+	// and stored in Redis.
+	respBytes, err := json.Marshal(t)
+	if err != nil {
+		http.Error(w, "Encoding error", http.StatusInternalServerError)
+		return
+	}
+
+	// Store fresh result in Redis with TTL.
+	if cacheEnabled && rdb != nil {
+		_ = rdb.Set(ctx, cacheKey, respBytes, cacheTTL).Err()
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(t)
+	w.Header().Set("X-Cache", "MISS")
+	w.Write(respBytes)
 }

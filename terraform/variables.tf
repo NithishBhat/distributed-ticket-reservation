@@ -27,3 +27,13 @@ variable "lock_strategy" {
   type    = string
   default = "pessimistic"
 }
+
+variable "enable_cache" {
+  type    = bool
+  default = false
+}
+
+variable "cache_ttl_seconds" {
+  type    = number
+  default = 10
+}

@@ -9,6 +9,7 @@ import (
 
 func main() {
 	initDB()
+	initRedis()
 
 	r := mux.NewRouter()
 	r.HandleFunc("/tickets", GetAllTickets).Methods("GET")

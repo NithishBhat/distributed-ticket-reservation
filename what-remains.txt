@@ -2,12 +2,13 @@ whats done / whats left
 (checked against both piazza posts)
 
 still need
-- caching layer for exp 3 — also needs elasticache, goes in
-  ticket-service
+
 - api gateway — not critical, locust talks to ALB directly
 - user + cart tables for final submission
 
 done
+- caching layer for exp 3 — also needs elasticache, goes in
+  ticket-service
 - verified all 3 strategies under high contention (200 concurrent,
   single ticket), low contention (spread across tickets), and
   near-capacity overbooking (100 concurrent for 10 remaining seats)
