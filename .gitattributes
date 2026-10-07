@@ -1,0 +1,3 @@
+*.tf linguist-detectable=false
+*.hcl linguist-detectable=false
+screenshots/** linguist-documentation

@@ -21,3 +21,6 @@ __pycache__/
 *.tfstate.*
 *.tfvars
 *.tfplan
+# Compiled service binaries
+services/*/ticket-service
+services/*/order-service
